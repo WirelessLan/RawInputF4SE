@@ -27,7 +27,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE 
 
 project(
 	RawInputF4SE
-	VERSION 0.1.0
+	VERSION 0.2.0
 	LANGUAGES CXX
 )
 
@@ -53,6 +53,10 @@ if (PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
 endif ()
 
 # ---- Globals ----
+
+add_compile_definitions(
+	F4SE_SUPPORT_XBYAK
+)
 
 if (MSVC)
 	if (NOT ${CMAKE_GENERATOR} STREQUAL "Ninja")

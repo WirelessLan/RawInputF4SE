@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <xbyak/xbyak.h>
 
 RE::Setting* g_ironSightsFOVRotateMultSetting = nullptr;
 RE::Setting* g_mouseHeadingXScaleSetting = nullptr;
@@ -6,6 +7,76 @@ RE::Setting* g_mouseHeadingYScaleSetting = nullptr;
 RE::Setting* g_mouseHeadingNormalizeMaxSetting = nullptr;
 RE::Setting* g_pitchSpeedRatioSetting = nullptr;
 RE::Setting* g_ironSightsPitchSpeedRatioSetting = nullptr;
+
+RE::BGSKeyword* g_hasScope = nullptr;
+
+float g_scopeFOVRotateMult = 0.0f;
+
+bool IsFirstPerson() {
+	RE::PlayerCamera* pCam = RE::PlayerCamera::GetSingleton();
+	if (!pCam) {
+		return false;
+	}
+
+	return pCam->currentState == pCam->cameraStates[RE::CameraState::kFirstPerson];
+}
+
+float FilterControllerOutput_Hook() {
+	RE::PlayerCharacter* player = RE::PlayerCharacter::GetSingleton();
+	if (player && player->currentProcess && player->currentProcess->middleHigh && IsFirstPerson()) {
+		for (auto& it : player->currentProcess->middleHigh->equippedItems) {
+			if (!it.item.instanceData || it.equipIndex.index != 0) {
+				continue;
+			}
+
+			auto instanceData = RE::fallout_cast<RE::TESObjectWEAP::InstanceData*, RE::TBO_InstanceData>(it.item.instanceData.get());
+			if (!instanceData) {
+				continue;
+			}
+
+			if (g_hasScope && (instanceData->flags & 0x00200000 || instanceData->keywords->HasKeyword(g_hasScope))) {
+				return g_scopeFOVRotateMult != 0.0f ? g_scopeFOVRotateMult : g_ironSightsFOVRotateMultSetting->GetFloat();
+			}
+		}
+	}
+
+	return g_ironSightsFOVRotateMultSetting->GetFloat();
+}
+
+void InstallHook() {
+	struct asm_code : Xbyak::CodeGenerator {
+		asm_code(std::uintptr_t a_srcAddr) {
+			Xbyak::Label funcLabel, retLabel;
+
+			sub(rsp, 0x10);
+			movaps(ptr[rsp], xmm0);
+			push(rax);
+			sub(rsp, 0x18);
+
+			call(ptr[rip + funcLabel]);
+			movss(xmm1, xmm0);
+
+			add(rsp, 0x18);
+			pop(rax);
+			movaps(xmm0, ptr[rsp]);
+			add(rsp, 0x10);
+
+			jmp(ptr[rip + retLabel]);
+
+			L(funcLabel);
+			dq((std::uintptr_t)FilterControllerOutput_Hook);
+
+			L(retLabel);
+			dq(a_srcAddr + 0x08);
+		}
+	};
+
+	REL::Relocation<std::uintptr_t> target(REL::Offset(0xEC1792));
+	asm_code p{ target.address() };
+	auto& trampoline = F4SE::GetTrampoline();
+	void* codeBuf = trampoline.allocate(p);
+	trampoline.write_branch<6>(target.address(), codeBuf);
+}
 
 void InitSettings() {
 	for (auto& it : RE::INISettingCollection::GetSingleton()->settings) {
@@ -29,6 +100,11 @@ void InitSettings() {
 		}
 	}
 
+	auto hasScopeForm = RE::TESForm::GetFormByID(0x0009F425);
+	if (hasScopeForm) {
+		g_hasScope = hasScopeForm->As<RE::BGSKeyword>();
+	}
+
 	if (!g_ironSightsFOVRotateMultSetting) {
 		logger::error("Unable to find settings: fIronSightsFOVRotateMult");
 	}
@@ -47,18 +123,19 @@ void InitSettings() {
 	if (!g_ironSightsPitchSpeedRatioSetting) {
 		logger::error("Unable to find settings: fIronSightsPitchSpeedRatio:Controls");
 	}
+	if (!g_hasScope) {
+		logger::error("Unable to find HasScope Keyword(0009F425)");
+	}
 }
 
-std::string GetINIValue(const char* section, const char* key)
-{
+std::string GetINIValue(const char* section, const char* key) {
 	static const std::string& configPath = "Data\\MCM\\Settings\\" + std::string(Version::PROJECT) + ".ini";
 	char result[256]{};
 	GetPrivateProfileStringA(section, key, NULL, result, sizeof(result), configPath.c_str());
 	return result;
 }
 
-void ReadINI()
-{
+void ReadINI() {
 	std::string value;
 
 	if (g_ironSightsFOVRotateMultSetting) {
@@ -70,6 +147,14 @@ void ReadINI()
 		}
 		logger::info("fIronSightsFOVRotateMult: {}", g_ironSightsFOVRotateMultSetting->GetFloat());
 	}
+
+	value = GetINIValue("Settings", "fScopeFOVRotateMult");
+	if (!value.empty()) {
+		try {
+			g_scopeFOVRotateMult = std::stof(value);
+		} catch (...) {}
+	}
+	logger::info("fScopeFOVRotateMult: {}", g_scopeFOVRotateMult);
 
 	if (g_mouseHeadingXScaleSetting) {
 		value = GetINIValue("Settings", "fMouseHeadingXScale");
@@ -148,6 +233,10 @@ public:
 			if (g_ironSightsFOVRotateMultSetting) {
 				g_ironSightsFOVRotateMultSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
+		} else if (strcmp(a_params.args[0].GetString(), "fScopeFOVRotateMult") == 0) {
+			if (g_hasScope) {
+				g_scopeFOVRotateMult = static_cast<float>(a_params.args[1].GetNumber());
+			}
 		} else if (strcmp(a_params.args[0].GetString(), "fMouseHeadingXScale") == 0) {
 			if (g_mouseHeadingXScaleSetting) {
 				g_mouseHeadingXScaleSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
@@ -223,9 +312,10 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Query(const F4SE::QueryInterface * 
 }
 
 extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface * a_f4se) {
+	F4SE::AllocTrampoline(static_cast<size_t>(1) << 8u);
 	F4SE::Init(a_f4se);
 
-	ReadINI();
+	InstallHook();
 
 	const F4SE::MessagingInterface* message = F4SE::GetMessagingInterface();
 	if (message) {
