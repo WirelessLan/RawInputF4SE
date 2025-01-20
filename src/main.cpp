@@ -159,7 +159,7 @@ void ReadINI() {
 			g_useScopeFOVRotateMult = static_cast<bool>(std::stoul(value));
 		} catch (...) {}
 	}
-	logger::info("bUseScopeFOVRotateMult: {}", g_scopeFOVRotateMult);
+	logger::info("bUseScopeFOVRotateMult: {}", g_useScopeFOVRotateMult);
 
 	value = GetINIValue("Settings", "fScopeFOVRotateMult");
 	if (!value.empty()) {
