@@ -10,6 +10,7 @@ RE::Setting* g_ironSightsPitchSpeedRatioSetting = nullptr;
 
 RE::BGSKeyword* g_hasScope = nullptr;
 
+bool g_useScopeFOVRotateMult = false;
 float g_scopeFOVRotateMult = 0.0f;
 
 bool IsFirstPerson() {
@@ -22,6 +23,10 @@ bool IsFirstPerson() {
 }
 
 float FilterControllerOutput_Hook() {
+	if (!g_useScopeFOVRotateMult) {
+		return g_ironSightsFOVRotateMultSetting->GetFloat();
+	}
+
 	RE::PlayerCharacter* player = RE::PlayerCharacter::GetSingleton();
 	if (player && player->currentProcess && player->currentProcess->middleHigh && IsFirstPerson()) {
 		for (auto& it : player->currentProcess->middleHigh->equippedItems) {
@@ -148,6 +153,14 @@ void ReadINI() {
 		logger::info("fIronSightsFOVRotateMult: {}", g_ironSightsFOVRotateMultSetting->GetFloat());
 	}
 
+	value = GetINIValue("Settings", "bUseScopeFOVRotateMult");
+	if (!value.empty()) {
+		try {
+			g_useScopeFOVRotateMult = static_cast<bool>(std::stoul(value));
+		} catch (...) {}
+	}
+	logger::info("bUseScopeFOVRotateMult: {}", g_scopeFOVRotateMult);
+
 	value = GetINIValue("Settings", "fScopeFOVRotateMult");
 	if (!value.empty()) {
 		try {
@@ -233,6 +246,8 @@ public:
 			if (g_ironSightsFOVRotateMultSetting) {
 				g_ironSightsFOVRotateMultSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
+		} else if (strcmp(a_params.args[0].GetString(), "bUseScopeFOVRotateMult") == 0) {
+			g_useScopeFOVRotateMult = a_params.args[1].GetBoolean();
 		} else if (strcmp(a_params.args[0].GetString(), "fScopeFOVRotateMult") == 0) {
 			if (g_hasScope) {
 				g_scopeFOVRotateMult = static_cast<float>(a_params.args[1].GetNumber());
