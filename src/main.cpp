@@ -1,17 +1,46 @@
 #include <Windows.h>
 #include <xbyak/xbyak.h>
 
-RE::Setting* g_ironSightsFOVRotateMultSetting = nullptr;
-RE::Setting* g_mouseHeadingXScaleSetting = nullptr;
-RE::Setting* g_mouseHeadingYScaleSetting = nullptr;
-RE::Setting* g_mouseHeadingNormalizeMaxSetting = nullptr;
-RE::Setting* g_pitchSpeedRatioSetting = nullptr;
-RE::Setting* g_ironSightsPitchSpeedRatioSetting = nullptr;
+namespace Settings {
+	namespace Names {
+		constexpr const char* IronSightsFOVRotateMult = "fIronSightsFOVRotateMult";
 
-RE::BGSKeyword* g_hasScope = nullptr;
+		namespace Game {
+			constexpr const char* MouseHeadingXScale = "fMouseHeadingXScale:Controls";
+			constexpr const char* MouseHeadingYScale = "fMouseHeadingYScale:Controls";
+			constexpr const char* MouseHeadingNormalizeMax = "fMouseHeadingNormalizeMax:Controls";
+			constexpr const char* PitchSpeedRatio = "fPitchSpeedRatio:Controls";
+			constexpr const char* IronSightsPitchSpeedRatio = "fIronSightsPitchSpeedRatio:Controls";
+		}
 
-bool g_useScopeFOVRotateMult = false;
-float g_scopeFOVRotateMult = 0.0f;
+		namespace Plugin {
+			constexpr const char* Section = "Settings";
+			constexpr const char* UseScopeFOVRotateMult = "bUseScopeFOVRotateMult";
+			constexpr const char* ScopeFOVRotateMult = "fScopeFOVRotateMult";
+			constexpr const char* MouseHeadingXScale = "fMouseHeadingXScale";
+			constexpr const char* MouseHeadingYScale = "fMouseHeadingYScale";
+			constexpr const char* MouseHeadingNormalizeMax = "fMouseHeadingNormalizeMax";
+			constexpr const char* PitchSpeedRatio = "fPitchSpeedRatio";
+			constexpr const char* IronSightsPitchSpeedRatio = "fIronSightsPitchSpeedRatio";
+		}
+	}
+
+	namespace DefaultValues {
+		constexpr float IronSightsFOVRotateMult = 1.0f;
+	}
+
+	RE::Setting* IronSightsFOVRotateMultSetting = nullptr;
+	RE::Setting* MouseHeadingXScaleSetting = nullptr;
+	RE::Setting* MouseHeadingYScaleSetting = nullptr;
+	RE::Setting* MouseHeadingNormalizeMaxSetting = nullptr;
+	RE::Setting* PitchSpeedRatioSetting = nullptr;
+	RE::Setting* IronSightsPitchSpeedRatioSetting = nullptr;
+
+	RE::BGSKeyword* HasScopeKeyword = nullptr;
+
+	bool UseScopeFOVRotateMult = false;
+	float ScopeFOVRotateMult = 0.0f;
+}
 
 bool IsFirstPerson() {
 	RE::PlayerCamera* pCam = RE::PlayerCamera::GetSingleton();
@@ -23,8 +52,10 @@ bool IsFirstPerson() {
 }
 
 float FilterControllerOutput_Hook() {
-	if (!g_useScopeFOVRotateMult) {
-		return g_ironSightsFOVRotateMultSetting->GetFloat();
+	float ironSightsFOVRotateMult = Settings::IronSightsFOVRotateMultSetting ? Settings::IronSightsFOVRotateMultSetting->GetFloat() : Settings::DefaultValues::IronSightsFOVRotateMult;
+
+	if (!Settings::UseScopeFOVRotateMult) {
+		return ironSightsFOVRotateMult;
 	}
 
 	RE::PlayerCharacter* player = RE::PlayerCharacter::GetSingleton();
@@ -39,13 +70,13 @@ float FilterControllerOutput_Hook() {
 				continue;
 			}
 
-			if (g_hasScope && (instanceData->flags & 0x00200000 || instanceData->keywords->HasKeyword(g_hasScope))) {
-				return g_scopeFOVRotateMult != 0.0f ? g_scopeFOVRotateMult : g_ironSightsFOVRotateMultSetting->GetFloat();
+			if (Settings::HasScopeKeyword && ((instanceData->flags & 0x00200000) || instanceData->keywords->HasKeyword(Settings::HasScopeKeyword))) {
+				return Settings::ScopeFOVRotateMult != 0.0f ? Settings::ScopeFOVRotateMult : ironSightsFOVRotateMult;
 			}
 		}
 	}
 
-	return g_ironSightsFOVRotateMultSetting->GetFloat();
+	return ironSightsFOVRotateMult;
 }
 
 void InstallHook() {
@@ -84,139 +115,156 @@ void InstallHook() {
 }
 
 void InitSettings() {
-	for (auto& it : RE::INISettingCollection::GetSingleton()->settings) {
-		if (!g_ironSightsFOVRotateMultSetting && it->GetKey() == "fIronSightsFOVRotateMult") {
-			g_ironSightsFOVRotateMultSetting = it;
+	for (const auto& it : RE::INISettingCollection::GetSingleton()->settings) {
+		if (!Settings::IronSightsFOVRotateMultSetting && it->GetKey() == Settings::Names::IronSightsFOVRotateMult) {
+			Settings::IronSightsFOVRotateMultSetting = it;
 		}
-		if (!g_mouseHeadingXScaleSetting && it->GetKey() == "fMouseHeadingXScale:Controls") {
-			g_mouseHeadingXScaleSetting = it;
+		if (!Settings::MouseHeadingXScaleSetting && it->GetKey() == Settings::Names::Game::MouseHeadingXScale) {
+			Settings::MouseHeadingXScaleSetting = it;
 		}
-		if (!g_mouseHeadingYScaleSetting && it->GetKey() == "fMouseHeadingYScale:Controls") {
-			g_mouseHeadingYScaleSetting = it;
+		if (!Settings::MouseHeadingYScaleSetting && it->GetKey() == Settings::Names::Game::MouseHeadingYScale) {
+			Settings::MouseHeadingYScaleSetting = it;
 		}
-		if (!g_mouseHeadingNormalizeMaxSetting && it->GetKey() == "fMouseHeadingNormalizeMax:Controls") {
-			g_mouseHeadingNormalizeMaxSetting = it;
+		if (!Settings::MouseHeadingNormalizeMaxSetting && it->GetKey() == Settings::Names::Game::MouseHeadingNormalizeMax) {
+			Settings::MouseHeadingNormalizeMaxSetting = it;
 		}
-		if (!g_pitchSpeedRatioSetting && it->GetKey() == "fPitchSpeedRatio:Controls") {
-			g_pitchSpeedRatioSetting = it;
+		if (!Settings::PitchSpeedRatioSetting && it->GetKey() == Settings::Names::Game::PitchSpeedRatio) {
+			Settings::PitchSpeedRatioSetting = it;
 		}
-		if (!g_ironSightsPitchSpeedRatioSetting && it->GetKey() == "fIronSightsPitchSpeedRatio:Controls") {
-			g_ironSightsPitchSpeedRatioSetting = it;
+		if (!Settings::IronSightsPitchSpeedRatioSetting && it->GetKey() == Settings::Names::Game::IronSightsPitchSpeedRatio) {
+			Settings::IronSightsPitchSpeedRatioSetting = it;
 		}
 	}
 
 	auto hasScopeForm = RE::TESForm::GetFormByID(0x0009F425);
 	if (hasScopeForm) {
-		g_hasScope = hasScopeForm->As<RE::BGSKeyword>();
+		Settings::HasScopeKeyword = hasScopeForm->As<RE::BGSKeyword>();
 	}
 
-	if (!g_ironSightsFOVRotateMultSetting) {
-		logger::error("Unable to find settings: fIronSightsFOVRotateMult");
+	if (!Settings::IronSightsFOVRotateMultSetting) {
+		logger::error("Unable to find settings: {}", Settings::Names::IronSightsFOVRotateMult);
 	}
-	if (!g_mouseHeadingXScaleSetting) {
-		logger::error("Unable to find settings: fMouseHeadingXScale:Controls");
+	if (!Settings::MouseHeadingXScaleSetting) {
+		logger::error("Unable to find settings: {}", Settings::Names::Game::MouseHeadingXScale);
 	}
-	if (!g_mouseHeadingYScaleSetting) {
-		logger::error("Unable to find settings: fMouseHeadingYScale:Controls");
+	if (!Settings::MouseHeadingYScaleSetting) {
+		logger::error("Unable to find settings: {}", Settings::Names::Game::MouseHeadingYScale);
 	}
-	if (!g_mouseHeadingNormalizeMaxSetting) {
-		logger::error("Unable to find settings: fMouseHeadingNormalizeMax:Controls");
+	if (!Settings::MouseHeadingNormalizeMaxSetting) {
+		logger::error("Unable to find settings: {}", Settings::Names::Game::MouseHeadingNormalizeMax);
 	}
-	if (!g_pitchSpeedRatioSetting) {
-		logger::error("Unable to find settings: fPitchSpeedRatio:Controls");
+	if (!Settings::PitchSpeedRatioSetting) {
+		logger::error("Unable to find settings: {}", Settings::Names::Game::PitchSpeedRatio);
 	}
-	if (!g_ironSightsPitchSpeedRatioSetting) {
-		logger::error("Unable to find settings: fIronSightsPitchSpeedRatio:Controls");
+	if (!Settings::IronSightsPitchSpeedRatioSetting) {
+		logger::error("Unable to find settings: {}", Settings::Names::Game::IronSightsPitchSpeedRatio);
 	}
-	if (!g_hasScope) {
-		logger::error("Unable to find HasScope Keyword(0009F425)");
+
+	if (!Settings::HasScopeKeyword) {
+		logger::error("Unable to find HasScope Keyword (0009F425)");
 	}
 }
 
 std::string GetINIValue(const char* section, const char* key) {
-	static const std::string& configPath = "Data\\MCM\\Settings\\" + std::string(Version::PROJECT) + ".ini";
+	static const std::string configPath = std::string("Data\\MCM\\Settings\\").append(Version::PROJECT).append(".ini");
 	char result[256]{};
-	GetPrivateProfileStringA(section, key, NULL, result, sizeof(result), configPath.c_str());
+	GetPrivateProfileStringA(section, key, "", result, sizeof(result), configPath.c_str());
 	return result;
 }
 
 void ReadINI() {
 	std::string value;
 
-	if (g_ironSightsFOVRotateMultSetting) {
-		value = GetINIValue("Settings", "fIronSightsFOVRotateMult");
+	if (Settings::IronSightsFOVRotateMultSetting) {
+		value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::IronSightsFOVRotateMult);
 		if (!value.empty()) {
 			try {
-				g_ironSightsFOVRotateMultSetting->SetFloat(std::stof(value));
-			} catch (...) {}
+				Settings::IronSightsFOVRotateMultSetting->SetFloat(std::stof(value));
+			} catch (const std::exception& e) {
+				logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::IronSightsFOVRotateMult, value, e.what());
+			}
 		}
-		logger::info("fIronSightsFOVRotateMult: {}", g_ironSightsFOVRotateMultSetting->GetFloat());
+		logger::info("{}: {}", Settings::Names::IronSightsFOVRotateMult, Settings::IronSightsFOVRotateMultSetting->GetFloat());
 	}
 
-	value = GetINIValue("Settings", "bUseScopeFOVRotateMult");
+	value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::UseScopeFOVRotateMult);
 	if (!value.empty()) {
 		try {
-			g_useScopeFOVRotateMult = static_cast<bool>(std::stoul(value));
-		} catch (...) {}
+			Settings::UseScopeFOVRotateMult = static_cast<bool>(std::stoul(value));
+		} catch (const std::exception& e) {
+			logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::UseScopeFOVRotateMult, value, e.what());
+		}
 	}
-	logger::info("bUseScopeFOVRotateMult: {}", g_useScopeFOVRotateMult);
+	logger::info("{}: {}", Settings::Names::Plugin::UseScopeFOVRotateMult, Settings::UseScopeFOVRotateMult);
 
-	value = GetINIValue("Settings", "fScopeFOVRotateMult");
+	value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::ScopeFOVRotateMult);
 	if (!value.empty()) {
 		try {
-			g_scopeFOVRotateMult = std::stof(value);
-		} catch (...) {}
+			Settings::ScopeFOVRotateMult = std::stof(value);
+		} catch (const std::exception& e) {
+			logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::ScopeFOVRotateMult, value, e.what());
+		}
 	}
-	logger::info("fScopeFOVRotateMult: {}", g_scopeFOVRotateMult);
+	logger::info("{}: {}", Settings::Names::Plugin::ScopeFOVRotateMult, Settings::ScopeFOVRotateMult);
 
-	if (g_mouseHeadingXScaleSetting) {
-		value = GetINIValue("Settings", "fMouseHeadingXScale");
+	if (Settings::MouseHeadingXScaleSetting) {
+		value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::MouseHeadingXScale);
 		if (!value.empty()) {
 			try {
-				g_mouseHeadingXScaleSetting->SetFloat(std::stof(value));
-			} catch (...) {}
+				Settings::MouseHeadingXScaleSetting->SetFloat(std::stof(value));
+			} catch (const std::exception& e) {
+				logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::MouseHeadingXScale, value, e.what());
+			}
 		}
-		logger::info("fMouseHeadingXScale: {}", g_mouseHeadingXScaleSetting->GetFloat());
+		logger::info("{}: {}", Settings::Names::Plugin::MouseHeadingXScale, Settings::MouseHeadingXScaleSetting->GetFloat());
 	}
 
-	if (g_mouseHeadingYScaleSetting) {
-		value = GetINIValue("Settings", "fMouseHeadingYScale");
+	if (Settings::MouseHeadingYScaleSetting) {
+		value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::MouseHeadingYScale);
 		if (!value.empty()) {
 			try {
-				g_mouseHeadingYScaleSetting->SetFloat(std::stof(value));
-			} catch (...) {}
+				Settings::MouseHeadingYScaleSetting->SetFloat(std::stof(value));
+			} catch (const std::exception& e) {
+				logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::MouseHeadingYScale, value, e.what());
+			}
 		}
-		logger::info("fMouseHeadingYScale: {}", g_mouseHeadingYScaleSetting->GetFloat());
+		logger::info("{}: {}", Settings::Names::Plugin::MouseHeadingYScale, Settings::MouseHeadingYScaleSetting->GetFloat());
+	}
+	
+	if (Settings::MouseHeadingNormalizeMaxSetting) {
+		value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::MouseHeadingNormalizeMax);
+		if (!value.empty()) {
+			try {
+				Settings::MouseHeadingNormalizeMaxSetting->SetFloat(std::stof(value));
+			} catch (const std::exception& e) {
+				logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::MouseHeadingNormalizeMax, value, e.what());
+			}
+		}
+		logger::info("{}: {}", Settings::Names::Plugin::MouseHeadingNormalizeMax, Settings::MouseHeadingNormalizeMaxSetting->GetFloat());
 	}
 
-	if (g_mouseHeadingNormalizeMaxSetting) {
-		value = GetINIValue("Settings", "fMouseHeadingNormalizeMax");
+	if (Settings::PitchSpeedRatioSetting) {
+		value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::PitchSpeedRatio);
 		if (!value.empty()) {
 			try {
-				g_mouseHeadingNormalizeMaxSetting->SetFloat(std::stof(value));
-			} catch (...) {}
+				Settings::PitchSpeedRatioSetting->SetFloat(std::stof(value));
+			} catch (const std::exception& e) {
+				logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::PitchSpeedRatio, value, e.what());
+			}
 		}
-		logger::info("fMouseHeadingNormalizeMax: {}", g_mouseHeadingNormalizeMaxSetting->GetFloat());
+		logger::info("{}: {}", Settings::Names::Plugin::PitchSpeedRatio, Settings::PitchSpeedRatioSetting->GetFloat());
 	}
 
-	if (g_pitchSpeedRatioSetting) {
-		value = GetINIValue("Settings", "fPitchSpeedRatio");
+	if (Settings::IronSightsPitchSpeedRatioSetting) {
+		value = GetINIValue(Settings::Names::Plugin::Section, Settings::Names::Plugin::IronSightsPitchSpeedRatio);
 		if (!value.empty()) {
 			try {
-				g_pitchSpeedRatioSetting->SetFloat(std::stof(value));
-			} catch (...) {}
+				Settings::IronSightsPitchSpeedRatioSetting->SetFloat(std::stof(value));
+			} catch (const std::exception& e) {
+				logger::error("Failed to parse {}: {}. Exception: {}", Settings::Names::Plugin::IronSightsPitchSpeedRatio, value, e.what());
+			}
 		}
-		logger::info("fPitchSpeedRatio: {}", g_pitchSpeedRatioSetting->GetFloat());
-	}
-
-	if (g_ironSightsPitchSpeedRatioSetting) {
-		value = GetINIValue("Settings", "fIronSightsPitchSpeedRatio");
-		if (!value.empty()) {
-			try {
-				g_ironSightsPitchSpeedRatioSetting->SetFloat(std::stof(value));
-			} catch (...) {}
-		}
-		logger::info("fIronSightsPitchSpeedRatio: {}", g_ironSightsPitchSpeedRatioSetting->GetFloat());
+		logger::info("{}: {}", Settings::Names::Plugin::IronSightsPitchSpeedRatio, Settings::IronSightsPitchSpeedRatioSetting->GetFloat());
 	}
 }
 
@@ -242,35 +290,33 @@ public:
 			return;
 		}
 
-		if (strcmp(a_params.args[0].GetString(), "fIronSightsFOVRotateMult") == 0) {
-			if (g_ironSightsFOVRotateMultSetting) {
-				g_ironSightsFOVRotateMultSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
+		if (strcmp(a_params.args[0].GetString(), Settings::Names::IronSightsFOVRotateMult) == 0) {
+			if (Settings::IronSightsFOVRotateMultSetting) {
+				Settings::IronSightsFOVRotateMultSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
-		} else if (strcmp(a_params.args[0].GetString(), "bUseScopeFOVRotateMult") == 0) {
-			g_useScopeFOVRotateMult = a_params.args[1].GetBoolean();
-		} else if (strcmp(a_params.args[0].GetString(), "fScopeFOVRotateMult") == 0) {
-			if (g_hasScope) {
-				g_scopeFOVRotateMult = static_cast<float>(a_params.args[1].GetNumber());
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::UseScopeFOVRotateMult) == 0) {
+			Settings::UseScopeFOVRotateMult = a_params.args[1].GetBoolean();
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::ScopeFOVRotateMult) == 0) {
+			Settings::ScopeFOVRotateMult = static_cast<float>(a_params.args[1].GetNumber());
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::MouseHeadingXScale) == 0) {
+			if (Settings::MouseHeadingXScaleSetting) {
+				Settings::MouseHeadingXScaleSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
-		} else if (strcmp(a_params.args[0].GetString(), "fMouseHeadingXScale") == 0) {
-			if (g_mouseHeadingXScaleSetting) {
-				g_mouseHeadingXScaleSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::MouseHeadingYScale) == 0) {
+			if (Settings::MouseHeadingYScaleSetting) {
+				Settings::MouseHeadingYScaleSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
-		} else if (strcmp(a_params.args[0].GetString(), "fMouseHeadingYScale") == 0) {
-			if (g_mouseHeadingYScaleSetting) {
-				g_mouseHeadingYScaleSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::MouseHeadingNormalizeMax) == 0) {
+			if (Settings::MouseHeadingNormalizeMaxSetting) {
+				Settings::MouseHeadingNormalizeMaxSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
-		} else if (strcmp(a_params.args[0].GetString(), "fMouseHeadingNormalizeMax") == 0) {
-			if (g_mouseHeadingNormalizeMaxSetting) {
-				g_mouseHeadingNormalizeMaxSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::PitchSpeedRatio) == 0) {
+			if (Settings::PitchSpeedRatioSetting) {
+				Settings::PitchSpeedRatioSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
-		} else if (strcmp(a_params.args[0].GetString(), "fPitchSpeedRatio") == 0) {
-			if (g_pitchSpeedRatioSetting) {
-				g_pitchSpeedRatioSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
-			}
-		} else if (strcmp(a_params.args[0].GetString(), "fIronSightsPitchSpeedRatio") == 0) {
-			if (g_ironSightsPitchSpeedRatioSetting) {
-				g_ironSightsPitchSpeedRatioSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
+		} else if (strcmp(a_params.args[0].GetString(), Settings::Names::Plugin::IronSightsPitchSpeedRatio) == 0) {
+			if (Settings::IronSightsPitchSpeedRatioSetting) {
+				Settings::IronSightsPitchSpeedRatioSetting->SetFloat(static_cast<float>(a_params.args[1].GetNumber()));
 			}
 		}
 	}

@@ -27,7 +27,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE 
 
 project(
 	RawInputF4SE
-	VERSION 0.3.0
+	VERSION 0.3.1
 	LANGUAGES CXX
 )
 
